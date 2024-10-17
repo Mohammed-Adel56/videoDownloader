@@ -1,0 +1,172 @@
+<style>
+  #qualityList {
+    min-height: 50px;
+    position: relative;
+  }
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    position: absolute;
+    top: 50%;
+    left: 20%;
+    transform: translate(-50%, -50%);
+  }
+  @keyframes spin {
+    0% {
+      transform: translate(-50%, -50%) rotate(0deg);
+    }
+    100% {
+      transform: translate(-50%, -50%) rotate(360deg);
+    }
+  }
+  #progressBar {
+    width: 100%;
+    background-color: #f3f3f3;
+    padding: 3px;
+    border-radius: 3px;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+  }
+
+  #progressBar div {
+    background-color: #3498db;
+    height: 20px;
+    border-radius: 3px;
+    transition: width 0.5s ease-in-out;
+  }
+</style>
+<div class="p-10">
+  <h3 class="text-2xl my-5 text-center">{{title}}</h3>
+  <div class="flex flex-wrap flex-col justify-center items-center gap-5">
+    <img
+      src="{{thumbnail.url or 'https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEggcYssXs80Ap3kvP987F8lbPpFLjo4ABupmz5Jg1U5NVq_StRAldT2LUDKkR8tNJAOkz8Lg-e8RoaJIrfMTtQI1-5Ged0oqdRlRUL7VPIetmo8Q33caNLIqvpu7MvMoZxuyncG_e3-KzXt/s1600/1493+BLANK+3.jpg'}}"
+      alt="Thumbnail"
+      class="w-[600px]"
+    />
+  </div>
+  <div class="my-5">
+    <h3>Available Qualities:</h3>
+    <div id="qualityList">
+      {% for option in quality_options %}
+      <div class="quality-option">
+        <a
+          href="#"
+          onclick="startDownload(event, '{{ option.video_format_id }}', '{{ option.audio_format_id }}', '{{ video_url }}', '{{ option.extension }}')"
+        >
+          {{ option.quality }} - {{ option.extension }} {% if option.total_size
+          != "Unknown" %}({{ option.total_size }}){% endif %} {% if
+          option.video_tbr != "Unknown" and option.audio_tbr != "Unknown" %} {%
+          if option.video_tbr != "Unknown" %}Video: {{ option.video_tbr }}{%
+          endif %} {% if option.video_tbr != "Unknown" and option.audio_tbr !=
+          "Unknown" %} | {% endif %} {% if option.audio_tbr != "Unknown"
+          %}Audio: {{ option.audio_tbr }}{% endif %} {% endif %}
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div id="downloadProgress" style="display: none">
+      <div id="progressBar"><div></div></div>
+      <p id="progressText"></p>
+    </div>
+    <p id="outputPath"></p>
+
+    <script>
+      async function startDownload(
+        event,
+        videoFormatId,
+        audioFormatId,
+        videoUrl,
+        extension
+      ) {
+        event.preventDefault();
+        var qualityList = document.getElementById("qualityList");
+        var downloadProgress = document.getElementById("downloadProgress");
+        var progressBar = document
+          .getElementById("progressBar")
+          .getElementsByTagName("div")[0];
+        var progressText = document.getElementById("progressText");
+        var outputPath = document.getElementById("outputPath");
+
+        qualityList.style.display = "none";
+        downloadProgress.style.display = "block";
+        progressBar.style.width = "0%";
+        progressText.textContent = "Starting download...";
+
+        try {
+          const response = await fetch("/download_video", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+              video_url: videoUrl,
+              video_format_id: videoFormatId,
+              audio_format_id: audioFormatId,
+            }),
+          });
+
+          if (response.ok) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              const text = decoder.decode(value);
+              const lines = text.split("\n");
+
+              for (const line of lines) {
+                if (line.startsWith("data: ")) {
+                  const data = JSON.parse(line.slice(6));
+                  handleServerMessage(
+                    data,
+                    progressText,
+                    progressBar,
+                    outputPath
+                  );
+                }
+              }
+            }
+          } else {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+        } catch (error) {
+          console.error("Download failed:", error);
+          progressText.textContent =
+            "Error: Download failed. Please try again.";
+        }
+      }
+
+      function handleServerMessage(
+        data,
+        progressText,
+        progressBar,
+        outputPath
+      ) {
+        if (data.progress) {
+          progressText.textContent = data.progress;
+          const percentage = extractPercentage(data.progress);
+          if (percentage !== null) {
+            progressBar.style.width = percentage + "%";
+          }
+        } else if (data.success) {
+          progressText.textContent = "Download complete!";
+          outputPath.innerHTML = `Output path: ${data.output_path}`;
+          progressBar.style.width = "100%";
+        } else if (data.error) {
+          progressText.textContent = "Error: " + data.error;
+        }
+      }
+
+      function extractPercentage(progressText) {
+        const match = progressText.match(/(\d+(?:\.\d+)?)%/);
+        return match ? parseFloat(match[1]) : null;
+      }
+    </script>
+  </div>
+</div>

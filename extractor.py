@@ -1,0 +1,114 @@
+import json
+import subprocess
+
+def format_size(size_bytes):
+    """Convert size in bytes to a human-readable format."""
+    if size_bytes is None:
+        return "Unknown"
+    try:
+        size_bytes = float(size_bytes)
+        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+            if size_bytes < 1024.0:
+                return f"{size_bytes:.2f} {unit}"
+            size_bytes /= 1024.0
+    except (ValueError, TypeError):
+        return "Unknown"
+
+def extract_format_data(format_data, duration):
+    filesize = format_data.get("filesize") or format_data.get("filesize_approx")
+    if filesize is None and format_data.get("tbr") is not None and duration is not None:
+        try:
+            estimated_size = (float(format_data["tbr"]) * 1024 * float(duration)) / 8  # in bytes
+            filesize = round(estimated_size)
+        except (ValueError, TypeError):
+            filesize = None
+    
+    return {
+        "extension": format_data.get("ext", ""),
+        "format_name": format_data.get("format", ""),
+        "url": format_data.get("url", ""),
+        "format_id": format_data.get("format_id", ""),
+        "acodec": format_data.get("acodec", "none"),
+        "vcodec": format_data.get("vcodec", "none"),
+        "height": format_data.get("height"),
+        "width": format_data.get("width"),
+        "filesize": filesize,
+        "tbr": format_data.get("tbr"),  # Total bitrate
+    }
+
+def extract_video_data_from_url(url):
+    def run_command(command):
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, check=True)
+            return json.loads(result.stdout)
+        except subprocess.CalledProcessError as e:
+            print(f"Command failed: {e}")
+            print(f"Error output: {e.stderr}")
+            return None
+
+    # Try yt-dlp first
+    yt_dlp_command = ['yt-dlp', '-J', '--no-playlist', url]
+    info = run_command(yt_dlp_command)
+
+    # If yt-dlp fails, try youtube-dl
+    if info is None:
+        youtube_dl_command = ['youtube-dl', '-J', '--no-playlist', url]
+        info = run_command(youtube_dl_command)
+
+    if info is None:
+        raise Exception("Failed to extract video information")
+    
+
+    title = info.get('title', 'Unknown Title')
+    formats = info.get('formats', [])
+    thumbnails = info.get('thumbnails', [])
+    duration = info.get('duration')
+
+    formats = [extract_format_data(format_data, duration) for format_data in formats]
+    
+    # Extract video-only formats
+    video_formats = [f for f in info.get('formats', []) if f.get('vcodec') != 'none' and f.get('acodec') == 'none']
+    
+    # Extract audio-only formats
+    audio_formats = [f for f in info.get('formats', []) if f.get('acodec') != 'none' and f.get('vcodec') == 'none']
+    
+    # Sort video formats by quality (using height as a proxy for quality)
+    video_formats.sort(key=lambda x: (x.get('height', 0) or 0, x.get('tbr', 0) or 0), reverse=True)
+    
+    # Sort audio formats by quality (using bitrate as a proxy for quality)
+    audio_formats.sort(key=lambda x: x.get('tbr', 0) or 0, reverse=True)
+    def find_best_audio_match(video_format, audio_formats):
+        video_bitrate = video_format.get('tbr', 0) or 0
+        return min(audio_formats, key=lambda a: abs((a.get('tbr', 0) or 0) - video_bitrate))
+    
+    # Create quality options
+    quality_options = []
+    for v_format in video_formats:
+            # Find the best matching audio format
+            best_audio = find_best_audio_match(v_format, audio_formats) # Find the best matching audio format
+            quality_name = f"{v_format.get('height', 'Unknown')}p"
+            video_size = v_format.get('filesize') or 0
+            audio_size = best_audio.get('filesize') or 0
+            total_size = video_size + audio_size
+            
+            if total_size > 0:
+                size_str = format_size(total_size)
+            else:
+                size_str = "Unknown"
+            quality_options.append({
+                "quality": quality_name,
+                "video_format_id": v_format.get('format_id', ''),
+                "audio_format_id": best_audio.get('format_id', ''),
+                "extension": v_format.get('ext', 'mp4'),
+                "total_size": size_str,
+                "video_tbr": f"{v_format.get('tbr', 0):.2f} Kbps" if v_format.get('tbr') is not None else "Unknown",
+                "audio_tbr": f"{best_audio.get('tbr', 0):.2f} Kbps" if best_audio.get('tbr') is not None else "Unknown"
+            })
+    if len(quality_options) ==0:
+        quality_options = formats
+    
+    return {
+        "title": title,
+        "quality_options": quality_options,
+        "thumbnails": thumbnails
+    }

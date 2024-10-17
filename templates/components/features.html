@@ -1,0 +1,24 @@
+<div class="text-center my-5 p-5">
+  <div class="container">
+    <h2 class="text-3xl font-bold text-center my-3">
+      AnyFast Online Video Downloader
+    </h2>
+    <div class="text-center text-base w-[50%] mx-auto">
+      Download all videos from the internet online with a high-quality MP4/MP3
+      in the GiveFastLink video downloader for 100% free, easy-to-use, and
+      unlimited.
+    </div>
+    <div
+      class="grid gap-5 grid-cols-1 md:grid-cols-3 text-center justify-center items-center my-5"
+    >
+      {% for feature in features %}
+      <div class="feature">
+        <img src="{{feature.image}}" alt="" class="w[200px] h-[200px]" />
+
+        <div class="font-bold text-lg">{{feature.title}}</div>
+        <div class="font-semibold text-base">{{feature.description}}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
