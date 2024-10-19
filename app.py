@@ -11,6 +11,8 @@ import shutil
 import logging
 from werkzeug.exceptions import HTTPException
 from flask_cors import CORS
+import time
+
 app = Flask(__name__, static_url_path='/static')
 CORS(app)
 logging.basicConfig(level=logging.DEBUG)
@@ -54,54 +56,89 @@ def download_video():
     video_format_id = request.form.get('video_format_id')
     audio_format_id = request.form.get('audio_format_id')
 
-    if not video_url or not video_format_id or not audio_format_id:
+    if not video_url or not video_format_id:
         return jsonify({"success": False, "error": "Missing URL or format IDs"}), 400
 
     def generate():
         with app.app_context():
             try:
                 with tempfile.TemporaryDirectory() as temp_dir:
-                    video_file = os.path.join(temp_dir, 'video.mp4')
-                    audio_file = os.path.join(temp_dir, 'audio.m4a')
                     output_file = os.path.join(temp_dir, 'output.mp4')
+                     # Check if we're dealing with a combined format or separate video/audio
+                    
+                    if video_format_id == audio_format_id:
+                        download_command = [
+                            'yt-dlp',
+                            '-f', f'{video_format_id}+{audio_format_id}' if video_format_id != audio_format_id else video_format_id,
+                            '--merge-output-format', 'mp4',
+                            '-o', output_file,
+                            '--no-check-certificates',
+                            '--no-playlist',
+                            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                            video_url
+                            ]
+                        yield f"data: {json.dumps({'progress': 'Starting download'})}\n\n"
+                        download_process = subprocess.Popen(download_command, 
+                                                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+                        for line in download_process.stdout:
+                            yield f"data: {json.dumps({'progress': 'Downloading: ' + line.strip()})}\n\n"
+                        download_process.wait()
+                        if download_process.returncode != 0:
+                            yield f"data: {json.dumps({'error': 'Download failed'})}\n\n"
+                            return
+                    else:
+                        video_file = os.path.join(temp_dir, 'video.mp4')
+                        audio_file = os.path.join(temp_dir, 'audio.m4a')
+                        # Download video
+                        yield f"data: {json.dumps({'progress': 'Starting video download'})}\n\n"
+                        logger.info('Starting video download')
+                        video_process = subprocess.Popen(['yt-dlp', '-f', video_format_id, '-o', video_file, video_url], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+                        for line in video_process.stdout:
+                            logger.debug(f"yt-dlp output: {line.strip()}")
+                            yield f"data: {json.dumps({'progress': 'Downloading video: ' + line.strip()})}\n\n"
+                        video_process.wait()
+                        if video_process.returncode != 0:
+                            yield f"data: {json.dumps({'error': 'Video download failed'})}\n\n"
+                            return
+                        # Download audio
+                        yield f"data: {json.dumps({'progress': 'Starting audio download'})}\n\n"
+                        audio_process = subprocess.Popen(['yt-dlp', '-f', audio_format_id, '-o', audio_file, video_url], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+                        for line in audio_process.stdout:
+                            yield f"data: {json.dumps({'progress': 'Downloading audio: ' + line.strip()})}\n\n"
+                        audio_process.wait()
+                        if audio_process.returncode != 0:
+                            yield f"data: {json.dumps({'error': 'Audio download failed'})}\n\n"
+                            return
 
-                    # Download video
-                    yield f"data: {json.dumps({'progress': 'Starting video download'})}\n\n"
-                    logger.info('Starting video download')
-                    video_process = subprocess.Popen(['yt-dlp', '-f', video_format_id, '-o', video_file, video_url], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-                    for line in video_process.stdout:
-                        logger.debug(f"yt-dlp output: {line.strip()}")
-                        yield f"data: {json.dumps({'progress': 'Downloading video: ' + line.strip()})}\n\n"
-                    video_process.wait()
-                    if video_process.returncode != 0:
-                        yield f"data: {json.dumps({'error': 'Video download failed'})}\n\n"
-                        return
-                    # Download audio
-                    yield f"data: {json.dumps({'progress': 'Starting audio download'})}\n\n"
-                    audio_process = subprocess.Popen(['yt-dlp', '-f', audio_format_id, '-o', audio_file, video_url], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-                    for line in audio_process.stdout:
-                        yield f"data: {json.dumps({'progress': 'Downloading audio: ' + line.strip()})}\n\n"
-                    audio_process.wait()
-                    if audio_process.returncode != 0:
-                        yield f"data: {json.dumps({'error': 'Audio download failed'})}\n\n"
-                        return
-
-                    # Merge video and audio
-                    yield f"data: {json.dumps({'progress': 'Merging video and audio'})}\n\n"
-                    merge_process = subprocess.Popen(['ffmpeg', '-i', video_file, '-i', audio_file, '-c', 'copy', output_file], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-                    for line in merge_process.stdout:
-                        yield f"data: {json.dumps({'progress': 'Merging: ' + line.strip()})}\n\n"
-                    merge_process.wait()
-                    if merge_process.returncode != 0:
-                        yield f"data: {json.dumps({'error': 'Merging failed'})}\n\n"
-                        return
+                        # Merge video and audio
+                        yield f"data: {json.dumps({'progress': 'Merging video and audio'})}\n\n"
+                        merge_process = subprocess.Popen(['ffmpeg', '-i', video_file, '-i', audio_file, '-c', 'copy', output_file], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+                        for line in merge_process.stdout:
+                            yield f"data: {json.dumps({'progress': 'Merging: ' + line.strip()})}\n\n"
+                        merge_process.wait()
+                        if merge_process.returncode != 0:
+                            yield f"data: {json.dumps({'error': 'Merging failed'})}\n\n"
+                            return
 
                     # Get video info
                     yield f"data: {json.dumps({'progress': 'Getting video info'})}\n\n"
-                    info_command = ['yt-dlp', '-J', '--no-playlist', video_url]
-                    info_process = subprocess.Popen(info_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    info_output, info_stderr = info_process.communicate()
-                    
+                    max_retries = 3
+                    retry_delay = 3
+                    for attempt in range(max_retries):
+                        info_command = ['yt-dlp', '-J', '--no-playlist', '--socket-timeout', '30', 
+                                            '--no-check-certificates',
+                                             video_url]
+                        info_process = subprocess.Popen(info_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        info_output, info_stderr = info_process.communicate()
+                        if info_process.returncode == 0:
+                            break
+                        elif attempt < max_retries - 1:
+                            yield f"data: {json.dumps({'progress': f'Retry {attempt + 1}/{max_retries}: Getting video info failed. Retrying in {retry_delay} seconds...'})}\n\n"
+                            time.sleep(retry_delay)
+                        else:
+                            yield f"data: {json.dumps({'error': f'Failed to get video info after {max_retries} attempts: {info_stderr.decode()}'})}\n\n"
+                            return 
+
                     if info_process.returncode != 0:
                         yield f"data: {json.dumps({'error': f'Failed to get video info: {info_stderr.decode()}'})}\n\n"
                         return

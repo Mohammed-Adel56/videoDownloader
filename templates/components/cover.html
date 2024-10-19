@@ -1,9 +1,29 @@
+<style>
+  .loader {
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #3498db;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    display: none;
+  }
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+</style>
 <div class="flex flex-col justify-center items-center p-5 my-5">
   <h2 class="mb-7 text-6xl font-extrabold">
     Online Download Any Thing For free
   </h2>
   <div class="mb-7 text-2xl">Best All Media Downloader Online and Free</div>
   <form
+    id="downloadForm"
     class="flex justify-center items-center w-full"
     action="/download"
     method="post"
@@ -21,4 +41,21 @@
       Download
     </button>
   </form>
+  <div id="loader" class="loader mt-5"></div>
+  <script>
+    document
+      .getElementById("downloadForm")
+      .addEventListener("submit", function (e) {
+        // Show the loader
+        document.getElementById("loader").style.display = "block";
+
+        // Optional: Disable the submit button to prevent multiple submissions
+        document.querySelector('button[type="submit"]').disabled = true;
+
+        // If you want to handle the form submission manually (e.g., using AJAX),
+        // you can prevent the default form submission like this:
+        // e.preventDefault();
+        // Then add your custom logic here
+      });
+  </script>
 </div>
