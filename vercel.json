@@ -4,7 +4,7 @@
         {
           "src": "app.py",
           "use": "@vercel/python",
-          "config": { "buildCommand": "chmod +x build.sh && ./build.sh" }
+          "config": { "buildCommand": "bash   build.sh " }
         }
       ],
       "routes": [
