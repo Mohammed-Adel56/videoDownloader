@@ -13,5 +13,12 @@
           "src": "/(.*)",
           "dest": "flask_app.py"
         }
-      ]
+      ],
+      "functions": {
+        "api/**/*.py": {
+          "runtime": "python3.12",
+          "zipped": true,
+          "maxSize": "250mb"
+        }
+      }
   }
