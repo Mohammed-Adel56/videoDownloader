@@ -2,7 +2,7 @@
     "version": 2,
     "builds": [
         {
-          "src": "app.py",
+          "src": "flask_app.py",
           "use": "@vercel/python",
           "config": { "buildCommand": "bash   build.sh " }
          
@@ -11,7 +11,7 @@
       "routes": [
         {
           "src": "/(.*)",
-          "dest": "app.py"
+          "dest": "flask_app.py"
         }
       ]
   }
