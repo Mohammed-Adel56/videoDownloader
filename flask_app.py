@@ -160,137 +160,207 @@ def download():
         
         if not video_data.get('formats'):
             return jsonify({"error": "No downloadable formats found for this video"}), 400
-            
-        return render_template(
-            "download.html",
-            title=video_data["title"],
-            thumbnail=video_data["thumbnail"],
-            quality_options=video_data["formats"],
-            features=FEATURES,
-            video_url=video_url
-        )
+        return jsonify(video_data)  
+        # return render_template(
+        #     "download.html",
+        #     title=video_data["title"],
+        #     thumbnail=video_data["thumbnail"],
+        #     quality_options=video_data["formats"],
+        #     features=FEATURES,
+        #     video_url=video_url
+        # )
     except Exception as e:
         error_message = str(e)
         logger.error(f"Download error: {error_message}")
         return jsonify({"error": error_message}), 400
 
 @app.route('/download_video', methods=['POST', 'GET'])
-
-def download_video():
-    if request.method == 'GET':
-        return jsonify({"error": "This endpoint only accepts POST requests"}), 405
-    
+def generate_download_link():
     video_url = request.form.get('video_url')
-    video_format_id = request.form.get('video_format_id')
-    audio_format_id = request.form.get('audio_format_id')
+    format_id = request.form.get('format_id')
+    
+    if not video_url or not format_id:
+        return jsonify({"error": "Missing URL or format ID"}), 400
+    
+    try:
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'format': format_id,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            },
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android'],
+                    'player_skip': ['webpage', 'config'],
+                    'skip': ['hls', 'dash']
+                }
+            },
+            'nocheckcertificate': True,
+            'ignoreerrors': False,
+        }
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=False)
+            if info is None:
+                raise Exception("Could not extract video information")
+            
+            # Find the requested format
+            selected_format = None
+            for f in info['formats']:
+                if f['format_id'] == format_id:
+                    selected_format = f
+                    break
+            
+            if selected_format:
+                return jsonify({
+                    "direct_url": selected_format['url'],
+                    "title": info['title'],
+                    "ext": selected_format.get('ext', 'mp4')
+                })
+            
+        return jsonify({"error": "Format not found"}), 404
+    except Exception as e:
+        logger.error(f"Download link generation error: {str(e)}")
+        return jsonify({"error": str(e)}), 400
 
-    if not video_url or not video_format_id:
-        return jsonify({"success": False, "error": "Missing URL or format IDs"}), 400
+# def download_video():
+#     if request.method == 'GET':
+#         return jsonify({"error": "This endpoint only accepts POST requests"}), 405
+    
+#     video_url = request.form.get('video_url')
+#     format_id = request.form.get('video_format_id')
+#     # audio_format_id = request.form.get('audio_format_id')
 
-    def generate():
-        with app.app_context():
-            try:
-                with tempfile.TemporaryDirectory() as temp_dir:
-                    output_file = os.path.join(temp_dir, 'output.mp4')
-                     # Check if we're dealing with a combined format or separate video/audio
+#     if not video_url or not format_id:
+#         return jsonify({"success": False, "error": "Missing URL or format IDs"}), 400
+
+#     def generate():
+#         with app.app_context():
+#             try:
+#                 with tempfile.TemporaryDirectory() as temp_dir:
+#                     ydl_opts = {
+#                         'quiet': True,
+#                         'no_warnings': True,
+#                         'format': format_id,
+#                         'http_headers': {
+#                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+#                             'Accept-Language': 'en-US,en;q=0.9',
+#                             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+#                         },
+#                         'extractor_args': {
+#                             'youtube': {
+#                                 'player_client': ['android'],
+#                                 'player_skip': ['webpage', 'config'],
+#                                 'skip': ['hls', 'dash']
+#                             }
+#                         },
+#                         'nocheckcertificate': True,
+#                         'ignoreerrors': False,
+#                         }
+#                     output_file = os.path.join(temp_dir, 'output.mp4')
+#                      # Check if we're dealing with a combined format or separate video/audio
                     
-                    if video_format_id == audio_format_id:
-                        download_command = [
-                            'yt-dlp',
-                            '-f', f'{video_format_id}+{audio_format_id}' if video_format_id != audio_format_id else video_format_id,
-                            '--merge-output-format', 'mp4',
-                            '-o', output_file,
-                            '--no-check-certificates',
-                            '--no-playlist',
-                            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                            video_url
-                            ]
-                        yield f"data: {json.dumps({'progress': 'Starting download'})}\n\n"
-                        download_process = subprocess.Popen(download_command, 
-                                                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-                        for line in download_process.stdout:
-                            yield f"data: {json.dumps({'progress': 'Downloading: ' + line.strip()})}\n\n"
-                        download_process.wait()
-                        if download_process.returncode != 0:
-                            yield f"data: {json.dumps({'error': 'Download failed'})}\n\n"
-                            return
-                    else:
-                        video_file = os.path.join(temp_dir, 'video.mp4')
-                        audio_file = os.path.join(temp_dir, 'audio.m4a')
-                        # Download video
-                        yield f"data: {json.dumps({'progress': 'Starting video download'})}\n\n"
-                        logger.info('Starting video download')
-                        video_process = subprocess.Popen(['yt-dlp', '-f', video_format_id, '-o', video_file, video_url], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-                        for line in video_process.stdout:
-                            logger.debug(f"yt-dlp output: {line.strip()}")
-                            yield f"data: {json.dumps({'progress': 'Downloading video: ' + line.strip()})}\n\n"
-                        video_process.wait()
-                        if video_process.returncode != 0:
-                            yield f"data: {json.dumps({'error': 'Video download failed'})}\n\n"
-                            return
-                        # Download audio
-                        yield f"data: {json.dumps({'progress': 'Starting audio download'})}\n\n"
-                        audio_process = subprocess.Popen(['yt-dlp', '-f', audio_format_id, '-o', audio_file, video_url], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-                        for line in audio_process.stdout:
-                            yield f"data: {json.dumps({'progress': 'Downloading audio: ' + line.strip()})}\n\n"
-                        audio_process.wait()
-                        if audio_process.returncode != 0:
-                            yield f"data: {json.dumps({'error': 'Audio download failed'})}\n\n"
-                            return
+#                     if video_format_id == audio_format_id:
+#                         download_command = [
+#                             'yt-dlp',
+#                             '-f', f'{video_format_id}+{audio_format_id}' if video_format_id != audio_format_id else video_format_id,
+#                             '--merge-output-format', 'mp4',
+#                             '-o', output_file,
+#                             '--no-check-certificates',
+#                             '--no-playlist',
+#                             '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+#                             video_url
+#                             ]
+#                         yield f"data: {json.dumps({'progress': 'Starting download'})}\n\n"
+#                         download_process = subprocess.Popen(download_command, 
+#                                                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+#                         for line in download_process.stdout:
+#                             yield f"data: {json.dumps({'progress': 'Downloading: ' + line.strip()})}\n\n"
+#                         download_process.wait()
+#                         if download_process.returncode != 0:
+#                             yield f"data: {json.dumps({'error': 'Download failed'})}\n\n"
+#                             return
+#                     else:
+#                         video_file = os.path.join(temp_dir, 'video.mp4')
+#                         audio_file = os.path.join(temp_dir, 'audio.m4a')
+#                         # Download video
+#                         yield f"data: {json.dumps({'progress': 'Starting video download'})}\n\n"
+#                         logger.info('Starting video download')
+#                         video_process = subprocess.Popen(['yt-dlp', '-f', video_format_id, '-o', video_file, video_url], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+#                         for line in video_process.stdout:
+#                             logger.debug(f"yt-dlp output: {line.strip()}")
+#                             yield f"data: {json.dumps({'progress': 'Downloading video: ' + line.strip()})}\n\n"
+#                         video_process.wait()
+#                         if video_process.returncode != 0:
+#                             yield f"data: {json.dumps({'error': 'Video download failed'})}\n\n"
+#                             return
+#                         # Download audio
+#                         yield f"data: {json.dumps({'progress': 'Starting audio download'})}\n\n"
+#                         audio_process = subprocess.Popen(['yt-dlp', '-f', audio_format_id, '-o', audio_file, video_url], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+#                         for line in audio_process.stdout:
+#                             yield f"data: {json.dumps({'progress': 'Downloading audio: ' + line.strip()})}\n\n"
+#                         audio_process.wait()
+#                         if audio_process.returncode != 0:
+#                             yield f"data: {json.dumps({'error': 'Audio download failed'})}\n\n"
+#                             return
 
-                        # Merge video and audio
-                        yield f"data: {json.dumps({'progress': 'Merging video and audio'})}\n\n"
-                        merge_process = subprocess.Popen(['ffmpeg', '-i', video_file, '-i', audio_file, '-c', 'copy', output_file], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-                        for line in merge_process.stdout:
-                            yield f"data: {json.dumps({'progress': 'Merging: ' + line.strip()})}\n\n"
-                        merge_process.wait()
-                        if merge_process.returncode != 0:
-                            yield f"data: {json.dumps({'error': 'Merging failed'})}\n\n"
-                            return
+#                         # Merge video and audio
+#                         yield f"data: {json.dumps({'progress': 'Merging video and audio'})}\n\n"
+#                         merge_process = subprocess.Popen(['ffmpeg', '-i', video_file, '-i', audio_file, '-c', 'copy', output_file], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+#                         for line in merge_process.stdout:
+#                             yield f"data: {json.dumps({'progress': 'Merging: ' + line.strip()})}\n\n"
+#                         merge_process.wait()
+#                         if merge_process.returncode != 0:
+#                             yield f"data: {json.dumps({'error': 'Merging failed'})}\n\n"
+#                             return
 
-                    # Get video info
-                    yield f"data: {json.dumps({'progress': 'Getting video info'})}\n\n"
-                    max_retries = 3
-                    retry_delay = 3
-                    for attempt in range(max_retries):
-                        info_command = ['yt-dlp', '-J', '--no-playlist', '--socket-timeout', '30', 
-                                            '--no-check-certificates',
-                                             video_url]
-                        info_process = subprocess.Popen(info_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                        info_output, info_stderr = info_process.communicate()
-                        if info_process.returncode == 0:
-                            break
-                        elif attempt < max_retries - 1:
-                            yield f"data: {json.dumps({'progress': f'Retry {attempt + 1}/{max_retries}: Getting video info failed. Retrying in {retry_delay} seconds...'})}\n\n"
-                            time.sleep(retry_delay)
-                        else:
-                            yield f"data: {json.dumps({'error': f'Failed to get video info after {max_retries} attempts: {info_stderr.decode()}'})}\n\n"
-                            return 
+#                     # Get video info
+#                     yield f"data: {json.dumps({'progress': 'Getting video info'})}\n\n"
+#                     max_retries = 3
+#                     retry_delay = 3
+#                     for attempt in range(max_retries):
+#                         info_command = ['yt-dlp', '-J', '--no-playlist', '--socket-timeout', '30', 
+#                                             '--no-check-certificates',
+#                                              video_url]
+#                         info_process = subprocess.Popen(info_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+#                         info_output, info_stderr = info_process.communicate()
+#                         if info_process.returncode == 0:
+#                             break
+#                         elif attempt < max_retries - 1:
+#                             yield f"data: {json.dumps({'progress': f'Retry {attempt + 1}/{max_retries}: Getting video info failed. Retrying in {retry_delay} seconds...'})}\n\n"
+#                             time.sleep(retry_delay)
+#                         else:
+#                             yield f"data: {json.dumps({'error': f'Failed to get video info after {max_retries} attempts: {info_stderr.decode()}'})}\n\n"
+#                             return 
 
-                    if info_process.returncode != 0:
-                        yield f"data: {json.dumps({'error': f'Failed to get video info: {info_stderr.decode()}'})}\n\n"
-                        return
+#                     if info_process.returncode != 0:
+#                         yield f"data: {json.dumps({'error': f'Failed to get video info: {info_stderr.decode()}'})}\n\n"
+#                         return
 
-                    video_info = json.loads(info_output)
-                    title = video_info.get('title', 'video')
-                    ext = 'mp4'
-                    filename = f"{title}.{ext}"
-                    downloads_folder = os.path.join(os.path.expanduser('~'), 'Downloads')
-                    final_output_path = os.path.join(downloads_folder, filename)
+#                     video_info = json.loads(info_output)
+#                     title = video_info.get('title', 'video')
+#                     ext = 'mp4'
+#                     filename = f"{title}.{ext}"
+#                     downloads_folder = os.path.join(os.path.expanduser('~'), 'Downloads')
+#                     final_output_path = os.path.join(downloads_folder, filename)
 
-                    # Move the file to the Downloads folder
-                    os.makedirs(downloads_folder, exist_ok=True)
-                    shutil.move(output_file, final_output_path)
+#                     # Move the file to the Downloads folder
+#                     os.makedirs(downloads_folder, exist_ok=True)
+#                     shutil.move(output_file, final_output_path)
 
-                    yield f"data: {json.dumps({'success': True, 'output_path': final_output_path})}\n\n"
-            except Exception as e:
-                current_app.logger.error(f"Error in download process: {str(e)}")
-                yield f"data: {json.dumps({'error': f'An error occurred: {str(e)}'})}\n\n"
-    response = Response(generate(), mimetype='text/event-stream')
-    response.headers.add('Access-Control-Allow-Origin', '*')  # السماح بكل الأصول
-    response.headers.add('Cache-Control', 'no-cache')
-    response.headers.add('X-Accel-Buffering', 'no')  # منع التخزين المؤقت
-    return response
+#                     yield f"data: {json.dumps({'success': True, 'output_path': final_output_path})}\n\n"
+#             except Exception as e:
+#                 current_app.logger.error(f"Error in download process: {str(e)}")
+#                 yield f"data: {json.dumps({'error': f'An error occurred: {str(e)}'})}\n\n"
+#     response = Response(generate(), mimetype='text/event-stream')
+#     response.headers.add('Access-Control-Allow-Origin', '*')  # السماح بكل الأصول
+#     response.headers.add('Cache-Control', 'no-cache')
+#     response.headers.add('X-Accel-Buffering', 'no')  # منع التخزين المؤقت
+#     return response
 
 if __name__ == '__main__':
     app.run(debug=True)
