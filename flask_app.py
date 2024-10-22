@@ -21,12 +21,13 @@ logging.basicConfig(level=logging.DEBUG)
 logger = app.logger
 
 def get_video_info(url):
-    """Extract video metadata without authentication."""
+    """Extract video metadata with enhanced error handling and anti-bot measures."""
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
         'extract_flat': False,
         'format': 'best',
+        # Enhanced browser-like headers
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept-Language': 'en-US,en;q=0.9',
@@ -35,22 +36,47 @@ def get_video_info(url):
             'Sec-Fetch-Site': 'none',
             'Sec-Fetch-User': '?1',
             'Sec-Fetch-Dest': 'document',
-            'Accept-Encoding': 'gzip, deflate, br'
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Cookie': ''  # Will be populated by yt-dlp
         },
+        # Advanced extractor configuration
         'extractor_args': {
             'youtube': {
-                'player_client': ['android'],
-                'player_skip': ['webpage', 'config'],
-                'skip': ['hls', 'dash']
+                'player_client': ['android', 'web'],  # Try multiple clients
+                'player_skip': ['webpage', 'config', 'js'],  # Skip unnecessary data
+                'skip': ['hls', 'dash']  # Skip streaming formats
             }
         },
+        'socket_timeout': 30,
+        'retries': 5,  # Increase retry attempts
         'nocheckcertificate': True,
         'ignoreerrors': False
     }
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
-            info = ydl.extract_info(url, download=False)
+            # First attempt - normal extraction
+            try:
+                info = ydl.extract_info(url, download=False)
+            except Exception as e:
+                if "Sign in to confirm you're not a bot" in str(e):
+                    # Modify options for retry with different approach
+                    ydl_opts.update({
+                        'extractor_args': {
+                            'youtube': {
+                                'player_client': ['tv_embedded', 'android'],
+                                'player_skip': ['webpage'],
+                                'skip': ['hls']
+                            }
+                        }
+                    })
+                    # Retry with modified options
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl_retry:
+                        info = ydl_retry.extract_info(url, download=False)
+                else:
+                    raise
+
             if info is None:
                 raise Exception("Could not extract video information")
             
@@ -94,9 +120,19 @@ def get_video_info(url):
                 'duration': info.get('duration', 0),
                 'thumbnail': info.get('thumbnail', '')
             }
+
         except Exception as e:
-            logger.error(f"Error extracting info: {str(e)}")
-            raise
+            error_message = str(e)
+            if "Sign in to confirm you're not a bot" in error_message:
+                raise Exception("This video requires additional verification. Please try again later or use a different URL.")
+            elif "This video is private" in error_message:
+                raise Exception("This video is private and cannot be accessed.")
+            elif "Video unavailable" in error_message:
+                raise Exception("This video is unavailable. It may have been removed or deleted.")
+            else:
+                logger.error(f"Error extracting info: {error_message}")
+                raise Exception("Failed to extract video information. Please try again later.")
+
 
 @app.errorhandler(Exception)
 def handle_exception(e):
@@ -115,16 +151,28 @@ def home():
 
 @app.route("/download", methods=["POST"])
 def download():
-    video_url = request.form["video_url"]
+    video_url = request.form.get("video_url")
+    if not video_url:
+        return jsonify({"error": "No video URL provided"}), 400
+        
     try:
         video_data = get_video_info(video_url)
-        title = video_data["title"]
-        thumbnail = video_data["thumbnails"]
-        quality_options = [format_data for format_data in info['formats'] if format_data.get('height')],
-        return render_template("download.html", title=title, thumbnail=thumbnail,
-                               quality_options=quality_options, features=FEATURES, video_url=video_url)
+        
+        if not video_data.get('formats'):
+            return jsonify({"error": "No downloadable formats found for this video"}), 400
+            
+        return render_template(
+            "download.html",
+            title=video_data["title"],
+            thumbnail=video_data["thumbnail"],
+            quality_options=video_data["formats"],
+            features=FEATURES,
+            video_url=video_url
+        )
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        error_message = str(e)
+        logger.error(f"Download error: {error_message}")
+        return jsonify({"error": error_message}), 400
 
 @app.route('/download_video', methods=['POST', 'GET'])
 
