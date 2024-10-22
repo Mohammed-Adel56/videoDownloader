@@ -12,6 +12,8 @@ import logging
 from werkzeug.exceptions import HTTPException
 from flask_cors import CORS
 import time
+import yt_dlp
+
 
 app = Flask(__name__, static_url_path='/static')
 CORS(app)
