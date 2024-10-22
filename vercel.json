@@ -4,12 +4,10 @@
         {
           "src": "flask_app.py",
           "use": "@vercel/python",
-         
-         
+          "config": { "buildCommand": "bash   build.sh ","zipped": true, "maxSize": "250mb" }
         }
       ],
       "routes": [
-       
         {
           "src": "/(.*)",
           "dest": "flask_app.py"
