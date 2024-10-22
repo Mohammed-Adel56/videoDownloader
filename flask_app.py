@@ -26,7 +26,21 @@ def get_video_info(url):
         'format': 'best',
         'quiet': True,
         'no_warnings': True,
-        'extract_flat': True
+        'extract_flat': True,
+        'cookiesfrombrowser': ('chrome',),  # Uses cookies from Chrome
+        'format': 'best',
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-us,en;q=0.5',
+            'Sec-Fetch-Mode': 'navigate',
+        },
+        # Add authentication handling
+        'username': None,  # Add your YouTube username if needed
+        'password': None,  # Add your YouTube password if needed
+        'age_limit': 99,
+        'nocheckcertificate': True,
+        'ignoreerrors': True,
     }
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -63,8 +77,8 @@ def download():
     try:
         video_data = get_video_info(video_url)
         title = video_data["title"]
-        thumbnail = video_data["thumbnails"][-1] if video_data["thumbnails"] else ""
-        quality_options = video_data["quality_options"]
+        thumbnail = video_data["thumbnails"]
+        quality_options = [format_data for format_data in info['formats'] if format_data.get('height')],
         return render_template("download.html", title=title, thumbnail=thumbnail,
                                quality_options=quality_options, features=FEATURES, video_url=video_url)
     except Exception as e:
@@ -189,4 +203,4 @@ def download_video():
     return response
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True)
