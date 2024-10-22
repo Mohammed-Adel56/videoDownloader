@@ -3,6 +3,8 @@ import subprocess
 import time
 import random
 import os
+import tempfile
+import yt_dlp
 
 def format_size(size_bytes):
     """Convert size in bytes to a human-readable format."""
@@ -63,25 +65,48 @@ def extract_video_data_from_url(url):
                print(f"Retrying in {delay:.2f} seconds...")
                time.sleep(delay) 
 
+    
+    # Path to the yt-dlp binary
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
+        'outtmpl': '%(title)s.%(ext)s',
+        'no_check_certificate': True,
+        'no_playlist': True,
+        'socket_timeout': 30,
+    }
+    with tempfile.TemporaryDirectory() as temp_dir:
+        ydl_opts['outtmpl'] = os.path.join(temp_dir, '%(title)s.%(ext)s')
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            try:
+                info = ydl.extract_info(url, download=False)
+            except Exception as e:
+                raise Exception(f"Failed to extract video information: {str(e)}")
 
-     # Path to the yt-dlp binary
-    yt_dlp_path = os.path.join(os.getcwd(), 'yt-dlp_linux')
+    if not info:
+        raise Exception("Failed to extract video information")
+    # yt_dlp_path = os.path.join(os.getcwd(), 'yt-dlp_linux')
     
     # Make sure the binary is executable
-    os.chmod(yt_dlp_path, 0o755)
+    # os.chmod(yt_dlp_path, 0o755)
 
     # Try yt-dlp first
-    yt_dlp_command = [yt_dlp_path, '-J', '--no-playlist', '--socket-timeout', '30', url]
-    info = run_command(yt_dlp_command)
+    # yt_dlp_command = [yt_dlp_path, '-J', '--no-playlist', '--socket-timeout', '30', url]
+    # info = run_command(yt_dlp_command)
 
     # If yt-dlp fails, try youtube-dl
-    if info is None:
-        youtube_dl_command = ['youtube-dl', '-J', '--no-playlist', '--socket-timeout', '60', url]
-        info = run_command(youtube_dl_command)
+    # if info is None:
+    #     youtube_dl_command = ['youtube-dl', '-J', '--no-playlist', '--socket-timeout', '60', url]
+    #     info = run_command(youtube_dl_command)
 
-    quality_options = []
-    if info is None:
-        raise Exception("Failed to extract video information")
+    # quality_options = []
+    # if info is None:
+    #     raise Exception("Failed to extract video information")
     
 
     title = info.get('title', 'Unknown Title')
