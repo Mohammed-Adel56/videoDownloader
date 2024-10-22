@@ -2,6 +2,7 @@ import json
 import subprocess
 import time
 import random
+import os
 
 def format_size(size_bytes):
     """Convert size in bytes to a human-readable format."""
@@ -44,7 +45,7 @@ def extract_format_data(format_data, duration):
         "width": format_data.get("width"),
         "filesize": filesize,
         "tbr": format_data.get("tbr"),  # Total bitrate
-    }
+     }
 
 def extract_video_data_from_url(url):
     def run_command(command, max_retries=3, initial_delay=1, max_delay=3):
@@ -62,8 +63,15 @@ def extract_video_data_from_url(url):
                print(f"Retrying in {delay:.2f} seconds...")
                time.sleep(delay) 
 
+
+     # Path to the yt-dlp binary
+    yt_dlp_path = os.path.join(os.getcwd(), 'bin', 'yt-dlp_linux')
+    
+    # Make sure the binary is executable
+    os.chmod(yt_dlp_path, 0o755)
+
     # Try yt-dlp first
-    yt_dlp_command = ['yt-dlp', '-J', '--no-playlist', '--socket-timeout', '30', url]
+    yt_dlp_command = [yt_dlp_path, '-J', '--no-playlist', '--socket-timeout', '30', url]
     info = run_command(yt_dlp_command)
 
     # If yt-dlp fails, try youtube-dl
@@ -99,18 +107,17 @@ def extract_video_data_from_url(url):
         audio_formats.sort(key=lambda x: x.get('tbr', 0) or 0, reverse=True)
         # Create quality options
         for v_format in video_formats:
-                if is_format_downloadable(v_format["format_id"],url):
-                    # Find the best matching audio format
-                    best_audio = find_best_audio_match(v_format, audio_formats) # Find the best matching audio format
-                    quality_name = f"{v_format.get('height', 'Unknown')}p"
-                    video_size = v_format.get('filesize') or 0
-                    audio_size = best_audio.get('filesize') or 0
-                    total_size = video_size + audio_size
-                    if total_size > 0:
-                        size_str = format_size(total_size)
-                    else:
-                        size_str = "Unknown"
-                    quality_options.append({
+                # Find the best matching audio format
+                best_audio = find_best_audio_match(v_format, audio_formats) # Find the best matching audio format
+                quality_name = f"{v_format.get('height', 'Unknown')}p"
+                video_size = v_format.get('filesize') or 0
+                audio_size = best_audio.get('filesize') or 0
+                total_size = video_size + audio_size
+                if total_size > 0:
+                    size_str = format_size(total_size)
+                else:
+                    size_str = "Unknown"
+                quality_options.append({
                             "quality": quality_name,
                             "video_format_id": v_format.get('format_id', ''),
                             "audio_format_id": best_audio.get('format_id', ''),
