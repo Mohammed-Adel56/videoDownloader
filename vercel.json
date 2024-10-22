@@ -6,9 +6,17 @@
           "use": "@vercel/python",
           "config": { "buildCommand": "bash   build.sh ","zipped": true, "maxSize": "250mb" }
          
+        },
+        {
+          "src": "yt-dlp",
+          "use": "@vercel/static"
         }
       ],
       "routes": [
+        {
+          "src": "/yt-dlp",
+          "dest": "/yt-dlp"
+        },
         {
           "src": "/(.*)",
           "dest": "flask_app.py"
