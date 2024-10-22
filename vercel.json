@@ -5,9 +5,17 @@
           "src": "flask_app.py",
           "use": "@vercel/python",
           "config": { "buildCommand": "bash   build.sh ","zipped": true, "maxSize": "250mb" }
+        },
+        {
+            "src": "cookies.txt",
+            "use": "@vercel/static"
         }
       ],
       "routes": [
+           {
+            "src": "/cookies.txt",
+            "dest": "/cookies.txt"
+        },
         {
           "src": "/(.*)",
           "dest": "flask_app.py"
