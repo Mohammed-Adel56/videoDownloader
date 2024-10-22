@@ -20,6 +20,28 @@ CORS(app)
 logging.basicConfig(level=logging.DEBUG)
 logger = app.logger
 
+def get_video_info(url):
+    """Extract only video metadata without downloading."""
+    ydl_opts = {
+        'format': 'best',
+        'quiet': True,
+        'no_warnings': True,
+        'extract_flat': True
+    }
+    
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        try:
+            info = ydl.extract_info(url, download=False)
+            return {
+                'title': info.get('title'),
+                'formats': info.get('formats', []),
+                'duration': info.get('duration'),
+                'thumbnail': info.get('thumbnail')
+            }
+        except Exception as e:
+            logger.error(f"Error extracting info: {str(e)}")
+            raise
+
 @app.errorhandler(Exception)
 def handle_exception(e):
     # Pass through HTTP errors
@@ -39,7 +61,7 @@ def home():
 def download():
     video_url = request.form["video_url"]
     try:
-        video_data = extract_video_data_from_url(video_url)
+        video_data = get_video_info(video_url)
         title = video_data["title"]
         thumbnail = video_data["thumbnails"][-1] if video_data["thumbnails"] else ""
         quality_options = video_data["quality_options"]
