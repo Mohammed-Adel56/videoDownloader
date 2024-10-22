@@ -65,7 +65,7 @@ def extract_video_data_from_url(url):
 
 
      # Path to the yt-dlp binary
-    yt_dlp_path = os.path.join(os.getcwd(), 'bin', 'yt-dlp_linux')
+    yt_dlp_path = os.path.join(os.getcwd(), 'yt-dlp_linux')
     
     # Make sure the binary is executable
     os.chmod(yt_dlp_path, 0o755)
