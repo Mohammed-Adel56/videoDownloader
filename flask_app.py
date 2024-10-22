@@ -21,36 +21,78 @@ logging.basicConfig(level=logging.DEBUG)
 logger = app.logger
 
 def get_video_info(url):
-    """Extract only video metadata without downloading."""
+    """Extract video metadata without authentication."""
     ydl_opts = {
-        'format': 'best',
         'quiet': True,
         'no_warnings': True,
-        'extract_flat': True,
-        'cookiesfrombrowser': ('chrome',),  # Uses cookies from Chrome
+        'extract_flat': False,
         'format': 'best',
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-us,en;q=0.5',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
             'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Sec-Fetch-Dest': 'document',
+            'Accept-Encoding': 'gzip, deflate, br'
         },
-        # Add authentication handling
-        'username': None,  # Add your YouTube username if needed
-        'password': None,  # Add your YouTube password if needed
-        'age_limit': 99,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android'],
+                'player_skip': ['webpage', 'config'],
+                'skip': ['hls', 'dash']
+            }
+        },
         'nocheckcertificate': True,
-        'ignoreerrors': True,
+        'ignoreerrors': False
     }
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
             info = ydl.extract_info(url, download=False)
+            if info is None:
+                raise Exception("Could not extract video information")
+            
+            # Filter and clean formats
+            formats = []
+            seen_qualities = set()
+            
+            for f in info.get('formats', []):
+                # Skip formats without video
+                if f.get('vcodec') == 'none':
+                    continue
+                    
+                # Create quality identifier
+                height = f.get('height', 0)
+                if height == 0:
+                    continue
+                    
+                quality = f"{height}p"
+                if quality in seen_qualities:
+                    continue
+                    
+                seen_qualities.add(quality)
+                
+                formats.append({
+                    'format_id': f['format_id'],
+                    'ext': f.get('ext', 'mp4'),
+                    'height': height,
+                    'filesize': f.get('filesize', 0),
+                    'tbr': f.get('tbr', 0),
+                    'quality': quality,
+                    'vcodec': f.get('vcodec', ''),
+                    'acodec': f.get('acodec', '')
+                })
+            
+            # Sort formats by height (quality)
+            formats.sort(key=lambda x: x['height'], reverse=True)
+            
             return {
-                'title': info.get('title'),
-                'formats': info.get('formats', []),
-                'duration': info.get('duration'),
-                'thumbnail': info.get('thumbnail')
+                'title': info.get('title', 'Untitled'),
+                'formats': formats,
+                'duration': info.get('duration', 0),
+                'thumbnail': info.get('thumbnail', '')
             }
         except Exception as e:
             logger.error(f"Error extracting info: {str(e)}")
