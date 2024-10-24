@@ -1,31 +1,31 @@
 FEATURES = [
     {
-        "image": "https://givefastlink.com/wp-content/uploads/2021/10/nui2.png",
+        "image": "./static/images/nui2.png",
         "title": "Easy To Use",
         "description": "All you have to do is copy & paste the URL link of your favorite social video in the above search box. After that, we will do the rest!"
     },
     {
-        "image": "https://givefastlink.com/wp-content/uploads/2021/10/download-from-the-cloud-200.png",
+        "image": "./static/images/download-from-the-cloud-200.png",
         "title": "No App Install Needed",
         "description": "No application is needed, and no installing software is required! Just copy the video URL link and paste it to GiveFastLink online downloader."
     },
     {
-        "image": "https://givefastlink.com/wp-content/uploads/2021/10/color-widgets-200.png",
+        "image": "./static/images/color-widgets-200.png",
         "title": "All Platform Supported",
         "description": "Download & save social videos from any browser, any OS. GiveFastLink works on mobile phones, PCs or tablets, and any OS containing Android, iOS, Windows, etc. "
     },
     {
-        "image": "https://givefastlink.com/wp-content/uploads/2021/10/cash-app-200.png",
+        "image": "./static/images/cash-app-200.png",
         "title": " Full Free ",
         "description": " The good news is that the GiveFastLink tool is full-free, so you don’t need to have a credit card or make any payment to use downloaders. "
     },
     {
-        "image": "https://givefastlink.com/wp-content/uploads/2021/10/add-user-male.png",
+        "image": "./static/images/add-user-male.png",
         "title": "No Account Needed",
         "description": "The GiveFastLink doesn’t want you to register an account using the online video downloader. Just open the givefastlink.com in your browser!"
     },
     {
-        "image": "https://givefastlink.com/wp-content/uploads/2021/10/save-close.png",
+        "image": "./static/images/save-close.png",
         "title": "Highest Quality Videos ",
         "description": "Depending on each video, available qualities may be different, but we guarantee you that the GiveFastLink gives you all qualities From 720p, 1080 Full HD to 4K."
     }

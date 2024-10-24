@@ -42,8 +42,8 @@
   <h3 class="text-2xl my-5 text-center">{{title}}</h3>
   <div class="flex flex-wrap flex-col justify-center items-center gap-5">
     <img
-      src="{{thumbnail.url or 'https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEggcYssXs80Ap3kvP987F8lbPpFLjo4ABupmz5Jg1U5NVq_StRAldT2LUDKkR8tNJAOkz8Lg-e8RoaJIrfMTtQI1-5Ged0oqdRlRUL7VPIetmo8Q33caNLIqvpu7MvMoZxuyncG_e3-KzXt/s1600/1493+BLANK+3.jpg'}}"
-      alt="Thumbnail"
+      src="{{thumbnail or 'https://ralfvanveen.com/wp-content/uploads/2021/06/Placeholder-_-Begrippenlijst.svg'}}"
+      alt="thumbnail"
       class="w-[600px]"
     />
   </div>
@@ -54,7 +54,7 @@
       <div class="quality-option">
         <a
           href="#"
-          onclick="startDownload(event, '{{ option.video_format_id }}', '{{ option.audio_format_id }}', '{{ video_url }}', '{{ option.extension }}')"
+          onclick="startDownload(event, '{{ option.format_id }}', '{{ option.url }}', '{{ video_url }}', '{{ option.ext }}')"
         >
           {{ option.quality }} - {{ option.extension }} {% if option.total_size
           != "Unknown" %}({{ option.total_size }}){% endif %} {% if

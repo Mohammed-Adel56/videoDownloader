@@ -12,8 +12,12 @@
       class="grid gap-5 grid-cols-1 md:grid-cols-3 text-center justify-center items-center my-5"
     >
       {% for feature in features %}
-      <div class="feature">
-        <img src="{{feature.image}}" alt="" class="w[200px] h-[200px]" />
+      <div class="feature flex justify-center flex-col items-center">
+        <img
+          src="{{feature.image}}"
+          alt=""
+          class="w-[200px] h-[200px] text-center"
+        />
 
         <div class="font-bold text-lg">{{feature.title}}</div>
         <div class="font-semibold text-base">{{feature.description}}</div>
