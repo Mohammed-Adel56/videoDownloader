@@ -665,5 +665,5 @@ def download():
             "message": "Please try again later"
         }), 500
 
-if __name__ == '__main__':
-    app.run(debug=False)    
+# if __name__ == '__main__':
+#     app.run(debug=False)    
